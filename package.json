@@ -1,11 +1,11 @@
 {
-  "name": "codecept-pixelmatchhelper",
+  "name": "codeceptjs-pixelmatchhelper",
   "version": "1.0.0",
   "description": "Pixelmatch helper for CodeceptJS, with support for Playwright, Webdriver, TestCafe, Puppeteer & Appium",
   "main": "index.js",
   "repository": {
     "type": "git",
-    "url": "git@github.com:stracker-phil/codecept-pixelmatchhelper.git"
+    "url": "git@github.com:stracker-phil/codeceptjs-pixelmatchhelper.git"
   },
   "dependencies": {
     "fs": "0.0.1-security",
@@ -28,7 +28,7 @@
   "author": "Philipp Stracker <stracker.phil@gmail.com>",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/stracker-phil/codecept-pixelmatchhelper/issues"
+    "url": "https://github.com/stracker-phil/codeceptjs-pixelmatchhelper/issues"
   },
-  "homepage": "https://github.com/stracker-phil/codecept-pixelmatchhelper#readme"
+  "homepage": "https://github.com/stracker-phil/codeceptjs-pixelmatchhelper#readme"
 }
