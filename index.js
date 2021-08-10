@@ -26,9 +26,9 @@ class PixelmatchHelper extends Helper {
 	 * @type {{expected: string, actual: string, diff: string}}
 	 */
 	globalDir = {
-		expected = '',
-		actual = '',
-		diff = ''
+		expected: '',
+		actual: '',
+		diff: ''
 	};
 
 	/**
