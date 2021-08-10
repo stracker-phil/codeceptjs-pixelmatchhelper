@@ -1,6 +1,8 @@
 const fs = require('fs');
 const PNG = require('pngjs').PNG;
 const pixelmatch = require('pixelmatch');
+const path = require('path');
+const Helper = require('@codeceptjs/helper');
 
 /**
  * Helper class that integrates pixelmatch into CodeceptJS for visual regression
@@ -78,15 +80,16 @@ class PixelmatchHelper extends Helper {
 	/**
 	 * Constructor that initializes the helper.
 	 * Called internally by CodeceptJS.
-	 * @param config
+	 *
+	 * @param {object} config
 	 */
 	constructor(config) {
 		super(config);
 
-		this.globalDir.expected = this.resolvePath(config.dirExpected);
-		this.globalDir.diff = this.resolvePath(config.dirDiff);
+		this.globalDir.expected = this._resolvePath(config.dirExpected);
+		this.globalDir.diff = this._resolvePath(config.dirDiff);
 		if (config.dirActual) {
-			this.globalDir.actual = this.resolvePath(config.dirActual);
+			this.globalDir.actual = this._resolvePath(config.dirActual);
 		} else {
 			this.globalDir.actual = global.output_dir + '/';
 		}
@@ -272,17 +275,19 @@ class PixelmatchHelper extends Helper {
 
 		switch (this.helper._which) {
 			case 'Puppeteer':
-			case 'Playwright':
+			case 'Playwright': {
 				const el = els[0];
 				const box = await el.boundingBox();
 				size = location = box;
+			}
 				break;
 
 			case 'WebDriver':
-			case 'Appium':
+			case 'Appium': {
 				const el = els[0];
 				location = await el.getLocation();
 				size = await el.getSize();
+			}
 				break;
 
 			case 'WebDriverIO':
@@ -344,6 +349,20 @@ class PixelmatchHelper extends Helper {
 		this.path.diff = this._buildPath('diff', image);
 
 		this.options = newValues;
+	}
+
+	/**
+	 * Builds the absolute path to a relative folder path.
+	 *
+	 * @param {string} dir - The relative folder name.
+	 * @returns {string}
+	 * @private
+	 */
+	_resolvePath(dir) {
+		if (!path.isAbsolute(dir)) {
+			return path.resolve(global.codecept_dir, dir) + '/';
+		}
+		return dir;
 	}
 
 	/**

@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "fs": "0.0.1-security",
+    "path": "^0.12.7",
     "pixelmatch": "^5.2.1",
     "pngjs": "^6.0.0"
   },
