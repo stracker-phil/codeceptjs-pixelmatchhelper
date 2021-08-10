@@ -1,0 +1,2 @@
+# CodeceptJS pixelmatch helper
+
