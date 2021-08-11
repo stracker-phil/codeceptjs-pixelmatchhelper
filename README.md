@@ -22,7 +22,7 @@ yarn add codeceptjs-pixelmatchhelper
 
 First, include this helper in your `codecept.json`/`codecept.conf.js` file. For example:
 
-```json
+```js
 helpers: {
   PixelmatchHelper: {
     require: "codeceptjs-pixelmatchhelper"
