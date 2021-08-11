@@ -34,13 +34,15 @@ After this, the helper provides three new methods via the `I` actor:
 
 ```js
 // Takes a screenshot of the current page. 
-await this.takeScreenshot("screenshot.png");
+await I.takeScreenshot("screenshot.png");
 
-// Compares the current screenshot.png with the expected base image. Fails, if the images do not match.
-await this.checkVisualDifferences("screenshot.png");
+// Compares the current screenshot.png with the expected base image. Fails, if
+// the images do not match.
+await I.checkVisualDifferences("screenshot.png");
 
-// Compares the current screenshot.png with the expected base image and returns the result instead of failing the test.
-const result = await this.getVisualDifferences("screenshot.png");
+// Compares the current screenshot.png with the expected base image and returns
+// the result instead of failing the test.
+const result = await I.getVisualDifferences("screenshot.png");
 ```
 
 More details on possible parameters and usage of those methods is below.
@@ -54,13 +56,13 @@ The only required option is the `require` value, which is always `"codeceptjs-pi
 ```js
 helpers: {
     PixelmatchHelper: {
-        require: "codeceptjs-pixelmatchhelper",   // Mandatory and static!
-        dirExpected: "./tests/screenshots/base/", // Optional but recommended.
-        dirDiff: "./tests/screenshots/diff/",     // Optional but recommended.
-        dirActual: "./tests/output/",             // Optional.
-        diffPrefix: "Diff_",                      // Optional.
-        tolerance: 2.5,                           // Optional.
-        threshold: 0.1                            // Optional.
+        require:      "codeceptjs-pixelmatchhelper",  // Mandatory and static!
+        dirExpected:  "./tests/screenshots/base/",    // Optional but recommended.
+        dirDiff:      "./tests/screenshots/diff/",    // Optional but recommended.
+        dirActual:    "./tests/output/",              // Optional.
+        diffPrefix:   "Diff_",                        // Optional.
+        tolerance:    2.5,                            // Optional.
+        threshold:    0.1                             // Optional.
     }
 }
 ```
@@ -81,7 +83,7 @@ Defaults to `"./tests/screenshots/diff/"`
 
 Folder that holds the actual screenshots that should be tested against an expected base images. The actual screenshot are usually generated fresh for every test.
 
-Defaults to `"./tests/screenshots/base/"`
+Defaults to `global.output_dir`
 
 #### `diffPrefix`
 
@@ -110,13 +112,13 @@ Defaults to `0.1`
 
 Compares the specified current image with an expected base image. If both images match, the test passes. If there are (too many) differences, the test fails.
 
-For the test, there must be an image with the specified name inside the `dirActual` folder (usually `output/`) and `dirExpected` folder (usually `screenshots/base/`). Both images can be generated using the `takeScreenshot()` method (below).
+> For the test, there must be an image with the specified name inside the `dirActual` folder (usually `output/`) and `dirExpected` folder (usually `screenshots/base/`). Both images can be generated using the [`takeScreenshot()`](#takescreenshotimagename-which-element) method.
 
-###### Parameters
+##### Parameters
 
 `imageName`
 
-Name of an existing image. The `.png` extension is optional.
+Name of an existing image. The `.png` extension is optional. An image with that filename must exist inside the `dirActual` folder, and the `dirExpected` folder.
 
 `options`
 
@@ -144,7 +146,7 @@ I.say(`Dashboard looks good!`);
 
 #### `getVisualDifferences(imageName, options)`
 
-###### Parameters
+##### Parameters
 
 `imageName`
 
@@ -178,7 +180,7 @@ if (res.match) {
 
 Takes a screenshot of the current viewport and saves it as a PNG image in the defined path (usually `tests/output` or `tests/screenshots/base`)
 
-###### Parameters
+##### Parameters
 
 `imageName`
 
