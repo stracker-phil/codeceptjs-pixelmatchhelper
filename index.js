@@ -1,4 +1,5 @@
 const fs = require('fs');
+const mv = require('mv');
 const PNG = require('pngjs').PNG;
 const pixelmatch = require('pixelmatch');
 const path = require('path');
@@ -15,6 +16,8 @@ const Helper = require('@codeceptjs/helper');
  *     dirDiff: "./tests/screenshots/diff/",
  *     dirActual: "./tests/output/", // Optional. Defaults to global.output_dir.
  *     diffPrefix: "Diff_" // Optional. Defaults to "Diff_"
+ *     tolerance: 1.5,
+ *     threshold: 0.1
  *   }
  * }
  *
@@ -32,6 +35,20 @@ class PixelmatchHelper extends Helper {
 		actual: '',
 		diff: ''
 	};
+
+	/**
+	 * Default tolserance level for comparisons.
+	 *
+	 * @type {float}
+	 */
+	globalTolerance = 0;
+
+	/**
+	 * Default threshold for all comparisons.
+	 *
+	 * @type {float}
+	 */
+	globalThreshold = 0.1;
 
 	/**
 	 * Filename prefix for generated difference files.
@@ -98,11 +115,12 @@ class PixelmatchHelper extends Helper {
 	/**
 	 * Holds comparison results.
 	 *
-	 * @type {{match: boolean, difference: float}}
+	 * @type {{match: boolean, difference: float, diffImage: string}}
 	 */
 	result = {
 		match: true,
-		difference: 0
+		difference: 0,
+		diffImage: ''
 	};
 
 	/**
@@ -132,6 +150,14 @@ class PixelmatchHelper extends Helper {
 			this.globalDir.actual = global.output_dir + '/';
 		}
 
+		if ('undefined' !== typeof config.tolerance) {
+			this.globalTolerance = Math.min(100, Math.max(0, parseFloat(config.tolerance)));
+		}
+
+		if ('undefined' !== typeof config.threshold) {
+			this.globalThreshold = Math.min(1, Math.max(0, parseFloat(config.threshold)));
+		}
+
 		this.globalDiffPrefix = config.diffPrefix ? config.diffPrefix : 'Diff_';
 	}
 
@@ -157,8 +183,7 @@ class PixelmatchHelper extends Helper {
 			if (this.result.match) {
 				resolve(this.result);
 			} else {
-				const diffImage = this._getFileName('diff');
-				reject(`Images are different by ${this.result.difference}%, which is above the allowed tolerance of ${this.options.tolerance}% - differences are displayed in '${diffImage}'`);
+				reject(`Images are different by ${this.result.difference}%, which is above the allowed tolerance of ${this.options.tolerance}% - differences are displayed in '${this.result.diffImage}'`);
 			}
 		});
 	}
@@ -259,6 +284,7 @@ class PixelmatchHelper extends Helper {
 
 		if (!this.result.match) {
 			this._savePngImage('diff', imgDiff);
+			this.result.diffImage = this._getFileName('diff');
 		}
 
 		return this.result;
@@ -275,7 +301,7 @@ class PixelmatchHelper extends Helper {
 	 *        screenshot, or empty to screenshot current viewport.
 	 * @returns {Promise}
 	 */
-	async takeScreenshot(name, which, element) {
+	async takeScreenshot(name, element, which) {
 		const driver = this._getDriver();
 
 		await this._setupTest(name);
@@ -313,9 +339,24 @@ class PixelmatchHelper extends Helper {
 				}
 			}
 		} else {
-			// Screenshot the current viewport.
-			driver.saveScreenshot('_temp.png');
-			fs.renameSync(global.output_dir + '_temp.png', outputFile);
+			// Screenshot the current viewport into a temp file.
+			driver.saveScreenshot('~screenshot.temp');
+
+			// Make sure the target filename is available.
+			try {
+				if (fs.existsSync(outputFile)) {
+					fs.unlinkSync(outputFile);
+				}
+			} catch (err) {
+				console.error('Unlink error: ' + err.code);
+			}
+
+			// Move the temp file to the correct folder and rename the file.
+			await mv(global.output_dir + '/~screenshot.temp', outputFile, {mkdirp: true}, err => {
+				if (err) {
+					console.log('Rename error: ' + err.code);
+				}
+			});
 		}
 	}
 
@@ -413,12 +454,13 @@ class PixelmatchHelper extends Helper {
 		// Reset the previous test results.
 		this.result = {
 			match: true,
-			difference: 0
+			difference: 0,
+			diffImage: ''
 		};
 
 		// Define the default options.
 		const newValues = {
-			tolerance: 0,
+			tolerance: this.globalTolerance,
 			compareWith: '',
 			bounds: {
 				left: 0,
@@ -428,7 +470,7 @@ class PixelmatchHelper extends Helper {
 			},
 			ignore: [],
 			args: {
-				threshold: 0.1,
+				threshold: this.globalThreshold,
 				alpha: 0.5,
 				includeAA: false,
 				diffMask: false,

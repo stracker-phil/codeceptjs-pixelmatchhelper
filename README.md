@@ -1,21 +1,33 @@
 # CodeceptJS pixelmatch helper
 
-Integrates visual regression tests in [CodeceptJS](https://codecept.io/) using the [pixelmatch](https://github.com/mapbox/pixelmatch) library.
+This package is inspired by `codeceptjs-resemblehelper`.
+
+Integrates **visual regression tests** in [CodeceptJS](https://codecept.io/) using the [pixelmatch](https://github.com/mapbox/pixelmatch) library. It works with all current CodeceptJS drivers: Playwright, Webdriver, Puppeteer, Appium, TestCafe.
+
+Two screenshots are compared for differences, using a custom tolerance. When both images are equal enough, the test passes. When there are too many differences, the test fails.
 
 ## Installation
+
+**npm**
+```shell
+npm install codeceptjs-pixelmatchhelper
+```
+
+**yarn**
+```shell
+yarn add codeceptjs-pixelmatchhelper
+```
 
 ## Usage
 
 First, include this helper in your `codecept.json`/`codecept.conf.js` file. For example:
 
-```js
-...
+```json
 helpers: {
   PixelmatchHelper: {
     require: "codeceptjs-pixelmatchhelper"
   }
 }
-...
 ```
 
 After this, the helper provides three new methods via the `I` actor:
@@ -41,13 +53,15 @@ The only required option is the `require` value, which is always `"codeceptjs-pi
 
 ```js
 helpers: {
-  PixelmatchHelper: {
-    require: "codeceptjs-pixelmatchhelper",   // Mandatory and static!
-    dirExpected: "./tests/screenshots/base/", // Optional but recommended.
-    dirDiff: "./tests/screenshots/diff/",     // Optional but recommended.
-    dirActual: "./tests/output/",             // Optional.
-    diffPrefix: "Diff_"                       // Optional.
-  }
+    PixelmatchHelper: {
+        require: "codeceptjs-pixelmatchhelper",   // Mandatory and static!
+        dirExpected: "./tests/screenshots/base/", // Optional but recommended.
+        dirDiff: "./tests/screenshots/diff/",     // Optional but recommended.
+        dirActual: "./tests/output/",             // Optional.
+        diffPrefix: "Diff_",                      // Optional.
+        tolerance: 2.5,                           // Optional.
+        threshold: 0.1                            // Optional.
+    }
 }
 ```
 
@@ -75,6 +89,19 @@ You can define a custom prefix for diff-images with this option.
 
 Defaults to `"Diff_"`
 
+#### `tolerance`
+
+The default tolerance for all comparisons. This value can always be overwritten for a single comparison using the `options` object (see below). The tolerance can be a float value between 0 and 100.
+
+Defaults to `0`
+
+#### `threshold`
+
+The default threshold for all comparisons. This value can always be overwritten for a single comparison using the `options` object (see below). The tolerance can be a float value between 0 and 1.
+
+Defaults to `0.1`
+
+
 ----
 
 ## Methods
@@ -85,31 +112,73 @@ Compares the specified current image with an expected base image. If both images
 
 For the test, there must be an image with the specified name inside the `dirActual` folder (usually `output/`) and `dirExpected` folder (usually `screenshots/base/`). Both images can be generated using the `takeScreenshot()` method (below).
 
+###### Parameters
+
 `imageName`
 
 Name of an existing image. The `.png` extension is optional.
 
 `options`
 
+Comparison options. See below for a full list of all options and the default values.
+
+##### Returns
+
+When the test passes, the method returns a Promise that resolves to the comparison results. The results object contains the following attributes: 
+
+* `match` (boolean) - Always true.
+* `difference` (float) - Differences between both images, in %.
+* `diffImage` (string) - Always empty.
+
 ##### Samples
 
 ```js
+// Simple test.
+await I.checkVisualDifferences("dashboard");
+I.say(`Dashboard looks good!`);
+
+// Use return values (only present, when the test passes).
+await I.checkVisualDifferences("dashboard");
+I.say(`Dashboard looks good!`);
 ```
 
 #### `getVisualDifferences(imageName, options)`
 
+###### Parameters
+
 `imageName`
 
+Name of an existing image. The `.png` extension is optional.
+
 `options`
+
+Comparison options. See below for a full list of all options and the default values.
+
+##### Returns
+
+Always returns a Promise that resolves to the comparison results. The results object contains the following attributes: 
+
+* `match` (boolean) - Whether the differences are within the allowed tolerance level.
+* `difference` (float) - Differences between both images, in %.
+* `diffImage` (string) - Filename of the diff-file.
 
 ##### Samples
 
 ```js
+const res = await I.getVisualDifferences("dashboard");
+
+if (res.match) {
+    I.say(`Identical enough. Difference is ${res.difference}%`);
+} else {
+    I.say(`Too different. Difference is ${res.difference}% - review ${res.diffImage} for details!`);
+}
 ```
 
 #### `takeScreenshot(imageName, which, element)`
 
 Takes a screenshot of the current viewport and saves it as a PNG image in the defined path (usually `tests/output` or `tests/screenshots/base`)
+
+###### Parameters
 
 `imageName`
 
