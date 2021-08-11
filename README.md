@@ -129,8 +129,11 @@ Comparison options. See below for a full list of all options and the default val
 When the test passes, the method returns a Promise that resolves to the comparison results. The results object contains the following attributes: 
 
 * `match` (boolean) - Always true.
-* `difference` (float) - Differences between both images, in %.
 * `diffImage` (string) - Always empty.
+* `diffPixels` (int) - Absolute count of different pixels.
+* `totalPixels` (int) - Absolute count of all pixels inside the image.
+* `relevantPixels` (int) - Absolute count of pixels, that are not ignored and inside the bounds-area.
+* `difference` (float) - Relative difference between both images. The percentage is calculated from the `diffPixels` and `relevantPixels` values.
 
 ##### Samples
 
@@ -161,8 +164,11 @@ Comparison options. See below for a full list of all options and the default val
 Always returns a Promise that resolves to the comparison results. The results object contains the following attributes: 
 
 * `match` (boolean) - Whether the differences are within the allowed tolerance level.
-* `difference` (float) - Differences between both images, in %.
 * `diffImage` (string) - Filename of the diff-file.
+* `diffPixels` (int) - Absolute count of different pixels.
+* `totalPixels` (int) - Absolute count of all pixels inside the image.
+* `relevantPixels` (int) - Absolute count of pixels, that are not ignored and inside the bounds-area.
+* `difference` (float) - Relative difference between both images. The percentage is calculated from the `diffPixels` and `relevantPixels` values.
 
 ##### Samples
 

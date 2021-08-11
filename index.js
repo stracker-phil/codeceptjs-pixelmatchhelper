@@ -1,5 +1,4 @@
 const fs = require('fs');
-const mv = require('mv');
 const PNG = require('pngjs').PNG;
 const pixelmatch = require('pixelmatch');
 const path = require('path');
@@ -115,12 +114,16 @@ class PixelmatchHelper extends Helper {
 	/**
 	 * Holds comparison results.
 	 *
-	 * @type {{match: boolean, difference: float, diffImage: string}}
+	 * @type {{match: boolean, difference: float, diffImage: string, diffPixels: integer,
+	 *     totalPixels: integer, relevantPixels: integer}}
 	 */
 	result = {
 		match: true,
 		difference: 0,
-		diffImage: ''
+		diffImage: '',
+		diffPixels: 0,
+		totalPixels: 0,
+		relevantPixels: 0
 	};
 
 	/**
@@ -180,10 +183,12 @@ class PixelmatchHelper extends Helper {
 				reject(err);
 			}
 
+			this.debug(`Different pixels: ${this.result.diffPixels} / ${this.result.relevantPixels}`);
+
 			if (this.result.match) {
 				resolve(this.result);
 			} else {
-				reject(`Images are different by ${this.result.difference}%, which is above the allowed tolerance of ${this.options.tolerance}% - differences are displayed in '${this.result.diffImage}'`);
+				reject(`Images are different by ${this.result.difference}% - differences are displayed in '${this.result.diffImage}'`);
 			}
 		});
 	}
@@ -214,6 +219,9 @@ class PixelmatchHelper extends Helper {
 
 		const width = imgExpected.width;
 		const height = imgExpected.height;
+		const totalPixels = width * height;
+		let ignoredPixels = 0;
+
 		const useBounds = this.options.bounds.left
 			|| this.options.bounds.top
 			|| this.options.bounds.width
@@ -233,22 +241,22 @@ class PixelmatchHelper extends Helper {
 				y3: imgExpected.height
 			};
 
-			this._clearRect(imgExpected, box.x0, box.y0, box.x1, box.y3);
-			this._clearRect(imgExpected, box.x1, box.y0, box.x3, box.y1);
-			this._clearRect(imgExpected, box.x1, box.y2, box.x3, box.y3);
-			this._clearRect(imgExpected, box.x2, box.y1, box.x3, box.y2);
+			ignoredPixels += this._clearRect(imgExpected, box.x0, box.y0, box.x1, box.y3);
+			ignoredPixels += this._clearRect(imgExpected, box.x1, box.y0, box.x3, box.y1);
+			ignoredPixels += this._clearRect(imgExpected, box.x1, box.y2, box.x3, box.y3);
+			ignoredPixels += this._clearRect(imgExpected, box.x2, box.y1, box.x3, box.y2);
 
 			this._clearRect(imgActual, box.x0, box.y0, box.x1, box.y3);
 			this._clearRect(imgActual, box.x1, box.y0, box.x3, box.y1);
 			this._clearRect(imgActual, box.x1, box.y2, box.x3, box.y3);
 			this._clearRect(imgActual, box.x2, box.y1, box.x3, box.y2);
-			this.debug(`Bounds applied ...`);
 		}
 
 		// Clear areas that are ignored.
 		for (let i = 0; i < this.options.ignore.length; i++) {
 			const box = this.options.ignore[i];
-			this._clearRect(
+
+			ignoredPixels += this._clearRect(
 				imgExpected,
 				box.left,
 				box.top,
@@ -269,7 +277,7 @@ class PixelmatchHelper extends Helper {
 			height
 		});
 
-		const mismatchPixel = pixelmatch(
+		this.result.diffPixels = pixelmatch(
 			imgExpected.data,
 			imgActual.data,
 			imgDiff.data,
@@ -278,8 +286,11 @@ class PixelmatchHelper extends Helper {
 			this.options.args
 		);
 
-		this.result.difference = mismatchPixel / (width * height) * 100;
-		this.result.difference = parseFloat(this.result.difference.toFixed(4));
+		this.result.totalPixels = totalPixels;
+		this.result.relevantPixels = totalPixels - ignoredPixels;
+		const difference = 100 * this.result.diffPixels / this.result.relevantPixels;
+
+		this.result.difference = parseFloat(difference.toFixed(4));
 		this.result.match = this.result.difference <= this.options.tolerance;
 
 		if (!this.result.match) {
@@ -301,7 +312,7 @@ class PixelmatchHelper extends Helper {
 	 *        screenshot, or empty to screenshot current viewport.
 	 * @returns {Promise}
 	 */
-	async takeScreenshot(name, element, which) {
+	async takeScreenshot(name, which, element) {
 		const driver = this._getDriver();
 
 		await this._setupTest(name);
@@ -341,22 +352,12 @@ class PixelmatchHelper extends Helper {
 		} else {
 			// Screenshot the current viewport into a temp file.
 			driver.saveScreenshot('~screenshot.temp');
-
-			// Make sure the target filename is available.
-			try {
-				if (fs.existsSync(outputFile)) {
-					fs.unlinkSync(outputFile);
-				}
-			} catch (err) {
-				console.error('Unlink error: ' + err.code);
-			}
+			this._mkdirp(path.dirname(outputFile));
+			this._deleteFile(outputFile);
 
 			// Move the temp file to the correct folder and rename the file.
-			await mv(global.output_dir + '/~screenshot.temp', outputFile, {mkdirp: true}, err => {
-				if (err) {
-					console.log('Rename error: ' + err.code);
-				}
-			});
+			fs.renameSync(global.output_dir + '/~screenshot.temp', outputFile);
+			this._deleteFile(global.output_dir + '/~screenshot.temp');
 		}
 	}
 
@@ -455,7 +456,10 @@ class PixelmatchHelper extends Helper {
 		this.result = {
 			match: true,
 			difference: 0,
-			diffImage: ''
+			diffImage: '',
+			diffPixels: 0,
+			totalPixels: 0,
+			relevantPixels: 0
 		};
 
 		// Define the default options.
@@ -579,6 +583,33 @@ class PixelmatchHelper extends Helper {
 		}
 
 		return driver;
+	}
+
+	/**
+	 * Recursively creates the specified directory.
+	 *
+	 * @param dir
+	 * @private
+	 */
+	_mkdirp(dir) {
+		fs.mkdirSync(dir, {recursive: true});
+	}
+
+	/**
+	 * Deletes the specified file, if it exists.
+	 *
+	 * @param {string} file - The file to delete.
+	 * @private
+	 */
+	_deleteFile(file) {
+		// Make sure the target filename is available.
+		try {
+			fs.existsSync(file) && fs.unlinkSync(file);
+		} catch (err) {
+			if ('ENOENT' !== err.code) {
+				throw new Error(`Could not delete target file "${file}" - is it read-only?`);
+			}
+		}
 	}
 
 	/**
@@ -712,13 +743,19 @@ class PixelmatchHelper extends Helper {
 	 * @param {int} y0
 	 * @param {int} x1
 	 * @param {int} y1
+	 * @return {int} Number of cleared pixels.
 	 * @private
 	 */
 	_clearRect(png, x0, y0, x1, y1) {
-		x0 = parseInt(x0);
-		y0 = parseInt(y0);
-		x1 = parseInt(x1);
-		y1 = parseInt(y1);
+		let count = 0;
+		x0 = Math.min(png.width, Math.max(0, parseInt(x0)));
+		x1 = Math.min(png.width, Math.max(0, parseInt(x1)));
+		y0 = Math.min(png.height, Math.max(0, parseInt(y0)));
+		y1 = Math.min(png.height, Math.max(0, parseInt(y1)));
+
+		if (x0 === x1 || y0 === y1) {
+			return 0;
+		}
 
 		if (x1 < x0) {
 			const xt = x1;
@@ -731,30 +768,24 @@ class PixelmatchHelper extends Helper {
 			y0 = yt;
 		}
 
-		if (x0 < 0) {
-			x0 = 0;
-		}
-		if (y0 < 0) {
-			y0 = 0;
-		}
-		if (x1 > png.width) {
-			x1 = png.width;
-		}
-		if (y1 > png.height) {
-			y1 = png.height;
-		}
-
-		if (x0 === x1 || y0 === y1) {
-			return;
-		}
-
-		this.debug(`Clear Rect ${x0}/${y0} - ${x1}/${y1}`);
 		const numBytes = 4 + (x1 - x0);
 
 		for (let y = y0; y < y1; y++) {
-			const startAt = 4 * (png.width * y);
-			png.data.fill(0, startAt, startAt + numBytes);
+			for (let x = x0; x < x1; x++) {
+				const k = 4 * (x + png.width * y);
+
+				if (png.data[k + 3] > 0) {
+					count++;
+				}
+
+				png.data.fill(0, k, k + 4);
+			}
 		}
+
+		this.debug(`Clear Rect ${x0}/${y0} - ${x1}/${y1} | ${count} pixels cleared`);
+
+		// Return the real number of cleared pixels.
+		return count;
 	}
 }
 
