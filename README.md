@@ -62,7 +62,7 @@ helpers: {
         dirActual:    "./tests/output/",              // Optional.
         diffPrefix:   "Diff_",                        // Optional.
         tolerance:    2.5,                            // Optional.
-        threshold:    0.1                             // Optional.
+        threshold:    0.05                            // Optional.
     }
 }
 ```
@@ -207,13 +207,16 @@ Default is `null`, which clips the entire viewport.
 ##### Samples
 
 ```js
-// Take a screenshot of the entire viewport and save it as output/dashboard.png.
+// Take a screenshot of the entire viewport and 
+// save it as output/dashboard.png.
 await I.takeScreenshot("dashboard");
 
-// Take a screenshot of the entire viewport and save it as screenshots/base/dashboard.png.
+// Take a screenshot of the entire viewport and 
+// save it as screenshots/base/dashboard.png.
 await I.takeScreenshot("dashboard", "expected");
 
-// Take a screenshot of the #menu element and save it as output/dashboard-menu.png.
+// Take a screenshot of the #menu element and 
+// save it as output/dashboard-menu.png.
 await I.takeScreenshot("dashboard-menu.png", "", "#menu");
 ```
 
@@ -222,16 +225,19 @@ await I.takeScreenshot("dashboard-menu.png", "", "#menu");
 #### `tolerance`
 
 Percentage of pixels that are allowed to differ between both images.
+
 Default is `0`
 
 #### `compareWith`
 
 Defines a custom comparison image name.
+
 Default is empty.
 
 #### `element`
 
 Only compare a single HTML element. Used to calculate a bounding box.
+
 Default is empty.
 
 #### `bounds`
@@ -241,11 +247,21 @@ Only used, when element is not set. Only pixels inside this box are compared.
 Tip: Dimensions are automatically retrained inside the image - if your ignore-box is wider or taller than the image, the box is internally resized to match your image. For example, it's possible to set the `width` to something really big to ensure the entire image-width is covered.
 
 ```js
+// Compare a 800x600 area with an offset 
+// of 120 (left) and 200 (top).
+bounds = {
+    left: 120,
+    top: 200,
+    width: 800,
+    height: 600 
+}
+
+// Compare a 100-pixel column at the left edge of the image.
 bounds = {
     left: 0,
     top: 0,
-    width: 0,
-    height: 0
+    width: 100,
+    height: 99999 
 }
 ```
 
@@ -260,7 +276,8 @@ Default is an empty array.
 ```js
 // This configuration ignores two areas: 
 // (1) the top-most 120 pixels
-// (2) a 100x100 square that's 200px from the left and 200px from top corner.
+// (2) a 100x100 square that's 200px from the left and 200px 
+//     from top corner.
 ignore = {
 	{left: 0,   top: 0,   width: 99999, height: 120},
 	{left: 200, top: 200, width: 100,   height: 100}
@@ -301,10 +318,15 @@ args = {
 
 ## Notes
 
-This helper can only compare PNG images. 
-
-For accurate results, you should generate those images via codeception. For example with `I.takeScreenshot()` from this helper, or built-in method `I.saveScreenshot()`.
+For accurate results, you should generate those images via CodeceptJS. For example, by using the built-in method `I.saveScreenshot()`, or the method `I.takeScreenshot()` provided by this helper.
 
 The reason is, that every browser renders the image slightly different. Only when you generate both images (expected and actual image) using the same browser/settings, there will be no differences.
 
 We've even seen differences between images taken by the same test setup by only changing the browser from default to headless mode.
+
+#### What's the difference between tolerance and threshold?
+
+* `tolerance` defines the amount of pixels that are allowed to be different between both images. When the relative count of different pixels is below the tolerance, the images are considered equal. Tolerance simply counts every pixel that is different, regardless of *how* different that pixel is.
+* `threshold` is used by the pixelmatch library to determine, which pixels are actually different. By raising the threshold, you will get a lower count of different pixels. Threshold inspects the color-difference between two pixels to determine if they are different.
+
+If tests are too sensitive, you can either increase `tolerance` (to allow a greater number of different pixels), or increase the `threshold` (to reduce the number of pixels that are different).
