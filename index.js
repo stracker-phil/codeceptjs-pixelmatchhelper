@@ -16,7 +16,10 @@ const Helper = require('@codeceptjs/helper');
  *     dirActual: "./tests/output/", // Optional. Defaults to global.output_dir.
  *     diffPrefix: "Diff_" // Optional. Defaults to "Diff_"
  *     tolerance: 1.5,
- *     threshold: 0.1
+ *     threshold: 0.1,
+ *     dumpIntermediateImage: false,
+ *     captureActual: true,
+ *     captureExpected: true
  *   }
  * }
  *
@@ -47,7 +50,7 @@ class PixelmatchHelper extends Helper {
 	 *
 	 * @type {float}
 	 */
-	globalThreshold = 0.1;
+	globalThreshold = 0.05;
 
 	/**
 	 * Filename prefix for generated difference files.
@@ -64,6 +67,30 @@ class PixelmatchHelper extends Helper {
 	 * @type {boolean}
 	 */
 	globalDumpIntermediateImage = false;
+
+	/**
+	 * Whether to capture a new screenshot and use it as actual image, instead
+	 * of loading the image from the `dirActual` folder.
+	 *
+	 * The new screenshot is saved to the `dirActual` folder before comparison,
+	 * and will replace an existing file with the same name!
+	 *
+	 * @type {boolean}
+	 */
+	globalCaptureActual = false;
+,
+
+	/**
+	 * Whether to update the expected base image with a current screenshot
+	 * before starting the comparison..
+	 *
+	 * The new screenshot is saved to the `dirExpected>` folder, and will
+	 * replace an existing file with the same name!
+	 *
+	 * @type {boolean}
+	 */
+	globalCaptureExpected = false;
+,
 
 	/**
 	 * Contains the image paths for the current test.
@@ -114,7 +141,13 @@ class PixelmatchHelper extends Helper {
 		},
 
 		// Whether to dump intermediate images before comparing them.
-		dumpIntermediateImage: false
+		dumpIntermediateImage: false,
+
+		// Whether to take a screenshot for the actual image before comparison.
+		captureActual: false,
+
+		// Whether to take a screenshot for the expected image before comparison.
+		captureExpected: false
 	};
 
 	/**
@@ -178,6 +211,8 @@ class PixelmatchHelper extends Helper {
 
 		this.globalDiffPrefix = config.diffPrefix ? config.diffPrefix : 'Diff_';
 		this.globalDumpIntermediateImage = !!config.dumpIntermediateImage;
+		this.globalCaptureActual = !!config.captureActual;
+		this.globalCaptureExpected = !!config.captureExpected;
 	}
 
 	/**
@@ -222,6 +257,14 @@ class PixelmatchHelper extends Helper {
 		await this._setupTest(image, options);
 
 		this.debug(`Check differences in ${image} ...`);
+
+		// Update screenshots before comparison, if needed.
+		if (this.options.captureActual) {
+			await this.takeScreenshot(image, 'actual');
+		}
+		if (this.options.captureExpected) {
+			await this.takeScreenshot(image, 'expected');
+		}
 
 		let imgExpected = this._loadPngImage('expected');
 		let imgActual = this._loadPngImage('actual');
@@ -486,6 +529,7 @@ class PixelmatchHelper extends Helper {
 		const newValues = {
 			tolerance: this.globalTolerance,
 			compareWith: '',
+			element: '',
 			bounds: {
 				left: 0,
 				top: 0,
@@ -502,7 +546,9 @@ class PixelmatchHelper extends Helper {
 				diffColor: [255, 0, 0],
 				diffColorAlt: null
 			},
-			dumpIntermediateImage: this.globalDumpIntermediateImage
+			dumpIntermediateImage: this.globalDumpIntermediateImage,
+			captureActual: this.globalCaptureActual,
+			captureExpected: this.globalCaptureExpected
 		};
 
 		if (options && 'object' === typeof options) {
@@ -519,6 +565,7 @@ class PixelmatchHelper extends Helper {
 			// Set bounding box, either via element selector or a rectangle.
 			if (options.element) {
 				const bounds = await this._getBoundingBox(options.element);
+				newValues.element = options.element;
 				newValues.bounds.left = bounds.left;
 				newValues.bounds.top = bounds.top;
 				newValues.bounds.width = bounds.width;
@@ -565,6 +612,14 @@ class PixelmatchHelper extends Helper {
 			// Debug: Dump intermediate images.
 			if ('undefined' !== typeof options.dumpIntermediateImage) {
 				newValues.dumpIntermediateImage = !!options.dumpIntermediateImage;
+			}
+
+			// Capture screenshots before comparison?
+			if ('undefined' !== typeof options.captureActual) {
+				newValues.captureActual = !!options.captureActual;
+			}
+			if ('undefined' !== typeof options.captureExpected) {
+				newValues.captureExpected = !!options.captureExpected;
 			}
 		}
 
