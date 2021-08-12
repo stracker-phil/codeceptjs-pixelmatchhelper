@@ -82,9 +82,9 @@ class PixelmatchHelper extends Helper {
 
 	/**
 	 * Whether to update the expected base image with a current screenshot
-	 * before starting the comparison..
+	 * before starting the comparison.
 	 *
-	 * The new screenshot is saved to the `dirExpected>` folder, and will
+	 * The new screenshot is saved to the `dirExpected` folder, and will
 	 * replace an existing file with the same name!
 	 *
 	 * @type {boolean}
