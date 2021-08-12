@@ -78,7 +78,7 @@ class PixelmatchHelper extends Helper {
 	 * @type {boolean}
 	 */
 	globalCaptureActual = false;
-,
+
 
 	/**
 	 * Whether to update the expected base image with a current screenshot
