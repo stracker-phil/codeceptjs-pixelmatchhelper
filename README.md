@@ -36,12 +36,12 @@ After this, the helper provides three new methods via the `I` actor:
 // Takes a screenshot of the current page. 
 await I.takeScreenshot("screenshot.png");
 
-// Compares the current screenshot.png with the expected base image. Fails, if
-// the images do not match.
+// Compares the current screenshot.png with the expected base image. 
+// Fails, if the images do not match.
 await I.checkVisualDifferences("screenshot.png");
 
-// Compares the current screenshot.png with the expected base image and returns
-// the result instead of failing the test.
+// Compares the current screenshot.png with the expected base image 
+// and returns the result instead of failing the test.
 const result = await I.getVisualDifferences("screenshot.png");
 ```
 
@@ -186,7 +186,7 @@ Always returns a Promise that resolves to the comparison results. The results ob
 const res = await I.getVisualDifferences("dashboard");
 
 if (res.match) {
-    // Identical enough. Difference is 0.0000%
+    // Identical enough. Difference is 0%
     I.say(`Identical enough. Difference is ${res.difference}%`);
 } else {
     // Too different. Difference is 1.2345% - review Diff_dashboard.png for details!
@@ -243,10 +243,12 @@ options = {
     // Defines a custom comparison image name.
     compareWith: '',
 
-    // Only compare a single HTML element. Used to calculate a bounding box.
+    // Only compare a single HTML element. Used to calculate a
+    // bounding box.
     element: '',
 
-    // Only used, when element is not set. Only pixels inside this box are compared.
+    // Only used, when element is not set. Only pixels inside
+    // this box are compared.
     bounds: {
         left: 0,
         top: 0,
@@ -254,7 +256,8 @@ options = {
         height: 0
     },
 
-    // List of boxes to ignore. Each box is an object with {left, top, width, height}.
+    // List of boxes to ignore. Each box is an object with 
+    // {left, top, width, height}.
     ignore: [],
 
     // Arguments that are passed to the pixelmatch library.
@@ -428,7 +431,7 @@ The reason is, that every browser renders the image slightly different. Only whe
 
 We've even seen differences between images taken by the same test setup by only changing the browser from default to headless mode.
 
-#### What's the difference between tolerance and threshold?
+#### What's the difference between `tolerance` and `threshold`?
 
 * `tolerance` defines the amount of pixels that are allowed to be different between both images. When the relative count of different pixels is below the tolerance, the images are considered equal. Tolerance simply counts every pixel that is different, regardless of *how* different that pixel is.
 * `threshold` is used by the pixelmatch library to determine, which pixels are actually different. By raising the threshold, you will get a lower count of different pixels. Threshold inspects the color-difference between two pixels to determine if they are different.
