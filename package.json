@@ -1,6 +1,6 @@
 {
   "name": "codeceptjs-pixelmatchhelper",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Pixelmatch helper for CodeceptJS, with support for Playwright, Webdriver, TestCafe, Puppeteer & Appium",
   "main": "index.js",
   "repository": {
