@@ -24,9 +24,9 @@ First, include this helper in your `codecept.json`/`codecept.conf.js` file. For 
 
 ```js
 helpers: {
-  PixelmatchHelper: {
-    require: "codeceptjs-pixelmatchhelper"
-  }
+    PixelmatchHelper: {
+        require: "codeceptjs-pixelmatchhelper"
+    }
 }
 ```
 
@@ -62,7 +62,8 @@ helpers: {
         dirActual:    "./tests/output/",              // Optional.
         diffPrefix:   "Diff_",                        // Optional.
         tolerance:    2.5,                            // Optional.
-        threshold:    0.05                            // Optional.
+        threshold:    0.05,                           // Optional.
+        dumpIntermediateImage: true                   // Optional.
     }
 }
 ```
@@ -103,6 +104,13 @@ The default threshold for all comparisons. This value can always be overwritten 
 
 Defaults to `0.1`
 
+#### `dumpIntermediateImage`
+
+Whether to save the intermediate images to the global output folder, after applying the bounds and ignore-boxes. This value can always be overwritten for a single comparison using the `options` object (see below).
+	
+This is useful for debugging your tests, but not recommended for production usage.
+
+Defaults to `false`
 
 ----
 
@@ -126,7 +134,7 @@ Comparison options. See below for a full list of all options and the default val
 
 ##### Returns
 
-When the test passes, the method returns a Promise that resolves to the comparison results. The results object contains the following attributes: 
+When the _test passes_, the method returns a Promise that resolves to the comparison results. The results object contains the following attributes: 
 
 * `match` (boolean) - Always true.
 * `diffImage` (string) - Always empty.
@@ -148,6 +156,8 @@ I.say(`Dashboard looks good!`);
 ```
 
 #### `getVisualDifferences(imageName, options)`
+
+Identical to `checkVisualDifferences()` but does not assert anything, i.e. this method does not trigger a failed test. It can be used, if you want to only inspect the differences between images.
 
 ##### Parameters
 
@@ -176,8 +186,10 @@ Always returns a Promise that resolves to the comparison results. The results ob
 const res = await I.getVisualDifferences("dashboard");
 
 if (res.match) {
+    // Identical enough. Difference is 0.0000%
     I.say(`Identical enough. Difference is ${res.difference}%`);
 } else {
+    // Too different. Difference is 1.2345% - review Diff_dashboard.png for details!
     I.say(`Too different. Difference is ${res.difference}% - review ${res.diffImage} for details!`);
 }
 ```
@@ -221,6 +233,45 @@ await I.takeScreenshot("dashboard-menu.png", "", "#menu");
 ```
 
 ### Options
+
+Overview of available options:
+
+```js
+options = {
+    tolerance: 0,
+
+    // Defines a custom comparison image name.
+    compareWith: '',
+
+    // Only compare a single HTML element. Used to calculate a bounding box.
+    element: '',
+
+    // Only used, when element is not set. Only pixels inside this box are compared.
+    bounds: {
+        left: 0,
+        top: 0,
+        width: 0,
+        height: 0
+    },
+
+    // List of boxes to ignore. Each box is an object with {left, top, width, height}.
+    ignore: [],
+
+    // Arguments that are passed to the pixelmatch library.
+    args: {
+        threshold: 0.1,
+        alpha: 0.5,
+        includeAA: false,
+        diffMask: false,
+        aaColor: [255, 255, 0],
+        diffColor: [255, 0, 0],
+        diffColorAlt: null
+    },
+
+    // Whether to dump intermediate images before comparing them.
+    dumpIntermediateImage: false
+}
+```
 
 #### `tolerance`
 
@@ -279,8 +330,8 @@ Default is an empty array.
 // (2) a 100x100 square that's 200px from the left and 200px 
 //     from top corner.
 ignore = {
-	{left: 0,   top: 0,   width: 99999, height: 120},
-	{left: 200, top: 200, width: 100,   height: 100}
+    {left: 0,   top: 0,   width: 99999, height: 120},
+    {left: 200, top: 200, width: 100,   height: 100}
 }
 ```
 
@@ -315,6 +366,59 @@ args = {
 * `diffColorAlt` (RGB-array) - An alternative color to use for dark on light differences to differentiate between "added" and "removed" parts. If not provided, all differing pixels use the color specified by diffColor. null by default.
 
 * `diffMask` (boolean) - Draw the diff over a transparent background (a mask), rather than over the original image. Will not draw anti-aliased pixels (if detected).
+
+
+#### `dumpIntermediateImage`
+
+Whether to save the intermediate images to the global output folder, after applying the bounds and ignore-boxes. That way, you can see, which parts of the image are actually compared.
+	
+This is useful for debugging your tests, but not recommended for production usage.
+
+Intermediate images are always saved to the output directory, and are named `<image>.expected.png` and `<image>.actual.png` 
+
+Defaults to `false`
+
+## Samples
+
+Sample scenario that tests the Google search page:
+
+```js
+Scenario('Visual Test', async () => {
+    I.amOnPage('https://google.com');
+    
+    // accept privacy policy popup.
+    I.waitForElement('#L2AGLb');
+    I.click('#L2AGLb');
+    
+    // Prepare the visual-test configuration.
+    const options = {
+        tolerance: 2,
+        bounds: {
+            left: 10,
+            top: 10,
+            width: 99999,
+            height: 600
+        }
+    };
+    
+    // Generate the expected base image.
+    I.takeScreenshot('google-page', 'expected');
+    
+    // After generating the screenshot/base/google-page.png file
+    // You can comment out the above line. Edit that base image
+    // And run the test again to see the results.
+    
+    // Take a snapshot of the current page to test.
+    I.takeScreenshot('google-page');
+    
+    // Compare both images and process the results.
+    const res = await I.getVisualDifferences('google-page', options);
+    console.log(JSON.stringify(res));
+    
+    // Compare both images with an assertion.
+    I.checkVisualDifferences('google-page', options);
+})
+```
 
 ## Notes
 

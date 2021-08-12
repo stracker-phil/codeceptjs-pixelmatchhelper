@@ -56,6 +56,16 @@ class PixelmatchHelper extends Helper {
 	globalDiffPrefix = 'Diff_';
 
 	/**
+	 * Whether to save the intermediate images to the global output folder,
+	 * after applying the bounds and ignore-boxes.
+	 *
+	 * Useful for debugging tests, but not recommended for production usage.
+	 *
+	 * @type {boolean}
+	 */
+	globalDumpIntermediateImage = false;
+
+	/**
 	 * Contains the image paths for the current test.
 	 *
 	 * @type {{expected: string, actual: string, diff: string}}
@@ -101,7 +111,10 @@ class PixelmatchHelper extends Helper {
 			aaColor: [255, 255, 0],
 			diffColor: [255, 0, 0],
 			diffColorAlt: null
-		}
+		},
+
+		// Whether to dump intermediate images before comparing them.
+		dumpIntermediateImage: false
 	};
 
 	/**
@@ -153,6 +166,8 @@ class PixelmatchHelper extends Helper {
 			this.globalDir.actual = global.output_dir + '/';
 		}
 
+		this.globalDir.output = global.output_dir + '/';
+
 		if ('undefined' !== typeof config.tolerance) {
 			this.globalTolerance = Math.min(100, Math.max(0, parseFloat(config.tolerance)));
 		}
@@ -162,6 +177,7 @@ class PixelmatchHelper extends Helper {
 		}
 
 		this.globalDiffPrefix = config.diffPrefix ? config.diffPrefix : 'Diff_';
+		this.globalDumpIntermediateImage = !!config.dumpIntermediateImage;
 	}
 
 	/**
@@ -183,7 +199,7 @@ class PixelmatchHelper extends Helper {
 				reject(err);
 			}
 
-			this.debug(`Different pixels: ${this.result.diffPixels} / ${this.result.relevantPixels}`);
+			this.debug(`Difference: ${this.result.difference}% | ${this.result.diffPixels} / ${this.result.relevantPixels} pixels`);
 
 			if (this.result.match) {
 				resolve(this.result);
@@ -272,6 +288,11 @@ class PixelmatchHelper extends Helper {
 			);
 		}
 
+		if (this.options.dumpIntermediateImage) {
+			this._savePngImage('output', imgExpected, 'expected');
+			this._savePngImage('output', imgActual, 'actual');
+		}
+
 		const imgDiff = new PNG({
 			width,
 			height
@@ -351,8 +372,7 @@ class PixelmatchHelper extends Helper {
 			}
 		} else {
 			// Screenshot the current viewport into a temp file.
-			driver.saveScreenshot('~screenshot.temp');
-			this._mkdirp(path.dirname(outputFile));
+			await driver.saveScreenshot('~screenshot.temp');
 			this._deleteFile(outputFile);
 
 			// Move the temp file to the correct folder and rename the file.
@@ -481,7 +501,8 @@ class PixelmatchHelper extends Helper {
 				aaColor: [255, 255, 0],
 				diffColor: [255, 0, 0],
 				diffColorAlt: null
-			}
+			},
+			dumpIntermediateImage: this.globalDumpIntermediateImage
 		};
 
 		if (options && 'object' === typeof options) {
@@ -539,6 +560,11 @@ class PixelmatchHelper extends Helper {
 					}
 					newValues.args[key] = options.args[key];
 				}
+			}
+
+			// Debug: Dump intermediate images.
+			if ('undefined' !== typeof options.dumpIntermediateImage) {
+				newValues.dumpIntermediateImage = !!options.dumpIntermediateImage;
 			}
 		}
 
@@ -668,13 +694,16 @@ class PixelmatchHelper extends Helper {
 	 * @private
 	 */
 	_buildPath(which, suffix) {
-		const path = this.globalDir[which];
+		const dir = this.globalDir[which];
 
-		if (!path) {
+		if (!dir) {
 			throw new Error(`No ${which}-folder defined.`);
 		}
 
-		return path + this._getFileName(which, suffix);
+		const fullPath = dir + this._getFileName(which, suffix);
+		this._mkdirp(path.dirname(fullPath));
+
+		return fullPath;
 	}
 
 	/**
@@ -722,10 +751,7 @@ class PixelmatchHelper extends Helper {
 		this.debug(`Save image to ${path} ...`);
 
 		fs.access(path, fs.constants.F_OK | fs.constants.W_OK, (err) => {
-			console.log('FILE CHECK', path);
-			console.log('FILE ERR', err.code, err.message);
-
-			if (err && err.code !== 'ENOENT') {
+			if (err && 'ENOENT' !== err.code) {
 				throw new Error(`Cannot save the ${which}-image to ${path}. Maybe the file is read-only.`);
 			}
 		});
