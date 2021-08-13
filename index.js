@@ -75,10 +75,9 @@ class PixelmatchHelper extends Helper {
 	 * The new screenshot is saved to the `dirActual` folder before comparison,
 	 * and will replace an existing file with the same name!
 	 *
-	 * @type {boolean}
+	 * @type {boolean|'missing'}
 	 */
-	globalCaptureActual = false;
-
+	globalCaptureActual = 'missing';
 
 	/**
 	 * Whether to update the expected base image with a current screenshot
@@ -87,10 +86,9 @@ class PixelmatchHelper extends Helper {
 	 * The new screenshot is saved to the `dirExpected` folder, and will
 	 * replace an existing file with the same name!
 	 *
-	 * @type {boolean}
+	 * @type {boolean|'missing'}
 	 */
-	globalCaptureExpected = false;
-,
+	globalCaptureExpected = 'missing';
 
 	/**
 	 * Contains the image paths for the current test.
@@ -144,10 +142,10 @@ class PixelmatchHelper extends Helper {
 		dumpIntermediateImage: false,
 
 		// Whether to take a screenshot for the actual image before comparison.
-		captureActual: false,
+		captureActual: 'missing',
 
 		// Whether to take a screenshot for the expected image before comparison.
-		captureExpected: false
+		captureExpected: 'missing'
 	};
 
 	/**
@@ -210,9 +208,14 @@ class PixelmatchHelper extends Helper {
 		}
 
 		this.globalDiffPrefix = config.diffPrefix ? config.diffPrefix : 'Diff_';
-		this.globalDumpIntermediateImage = !!config.dumpIntermediateImage;
-		this.globalCaptureActual = !!config.captureActual;
-		this.globalCaptureExpected = !!config.captureExpected;
+		this.globalDumpIntermediateImage = this._toBool(config.dumpIntermediateImage);
+
+		if ('undefined' !== typeof config.captureActual) {
+			this.globalCaptureActual = this._toBool(config.captureActual, ['missing']);
+		}
+		if ('undefined' !== typeof config.captureExpected) {
+			this.globalCaptureExpected = this._toBool(config.captureExpected, ['missing']);
+		}
 	}
 
 	/**
@@ -234,12 +237,13 @@ class PixelmatchHelper extends Helper {
 				reject(err);
 			}
 
-			this.debug(`Difference: ${this.result.difference}% | ${this.result.diffPixels} / ${this.result.relevantPixels} pixels`);
+			const res = this.result;
+			this.debug(`Difference: ${res.difference}% | ${res.diffPixels} / ${res.relevantPixels} pixels`);
 
-			if (this.result.match) {
-				resolve(this.result);
+			if (res.match) {
+				resolve(res);
 			} else {
-				reject(`Images are different by ${this.result.difference}% - differences are displayed in '${this.result.diffImage}'`);
+				reject(`Images are different by ${res.difference}% - differences are displayed in '${res.diffImage}'`);
 			}
 		});
 	}
@@ -255,114 +259,94 @@ class PixelmatchHelper extends Helper {
 	 */
 	async getVisualDifferences(image, options) {
 		await this._setupTest(image, options);
+		const opts = this.options;
+		const res = this.result;
 
 		this.debug(`Check differences in ${image} ...`);
 
-		// Update screenshots before comparison, if needed.
-		if (this.options.captureActual) {
-			await this.takeScreenshot(image, 'actual');
-		}
-		if (this.options.captureExpected) {
-			await this.takeScreenshot(image, 'expected');
+		await this._maybeCaptureImage('actual', opts.captureActual);
+		await this._maybeCaptureImage('expected', opts.captureExpected);
+
+		const expectedImages = this._getExpectedImagePaths();
+		if (!expectedImages.length) {
+			throw new Error('No expected base image found');
 		}
 
-		let imgExpected = this._loadPngImage('expected');
-		let imgActual = this._loadPngImage('actual');
-
-		if (imgExpected.width !== imgActual.width || imgExpected.height !== imgActual.height) {
-			throw new Error('Image sizes do not match');
-		}
-		if (!imgExpected.width) {
-			throw new Error('Image is empty');
+		const imgActual = this._loadPngImage('actual');
+		if (!imgActual.height) {
+			throw new Error('Current screenshot is empty (zero height)');
 		}
 
-		const width = imgExpected.width;
-		const height = imgExpected.height;
+		const width = imgActual.width;
+		const height = imgActual.height;
 		const totalPixels = width * height;
-		let ignoredPixels = 0;
-
-		const useBounds = this.options.bounds.left
-			|| this.options.bounds.top
-			|| this.options.bounds.width
-			|| this.options.bounds.height;
-
-		// Apply a bounding box to only compare a section of the image.
-		if (useBounds) {
-			this.debug(`Apply bounds to image ...`);
-			const box = {
-				x0: 0,
-				x1: this.options.bounds.left,
-				x2: this.options.bounds.left + this.options.bounds.width,
-				x3: imgExpected.width,
-				y0: 0,
-				y1: this.options.bounds.top,
-				y2: this.options.bounds.top + this.options.bounds.height,
-				y3: imgExpected.height
-			};
-
-			ignoredPixels += this._clearRect(imgExpected, box.x0, box.y0, box.x1, box.y3);
-			ignoredPixels += this._clearRect(imgExpected, box.x1, box.y0, box.x3, box.y1);
-			ignoredPixels += this._clearRect(imgExpected, box.x1, box.y2, box.x3, box.y3);
-			ignoredPixels += this._clearRect(imgExpected, box.x2, box.y1, box.x3, box.y2);
-
-			this._clearRect(imgActual, box.x0, box.y0, box.x1, box.y3);
-			this._clearRect(imgActual, box.x1, box.y0, box.x3, box.y1);
-			this._clearRect(imgActual, box.x1, box.y2, box.x3, box.y3);
-			this._clearRect(imgActual, box.x2, box.y1, box.x3, box.y2);
-		}
-
-		// Clear areas that are ignored.
-		for (let i = 0; i < this.options.ignore.length; i++) {
-			const box = this.options.ignore[i];
-
-			ignoredPixels += this._clearRect(
-				imgExpected,
-				box.left,
-				box.top,
-				box.left + box.width,
-				box.top + box.height
-			);
-			this._clearRect(
-				imgActual,
-				box.left,
-				box.top,
-				box.left + box.width,
-				box.top + box.height
-			);
-		}
-
-		if (this.options.dumpIntermediateImage) {
-			this._savePngImage('output', imgExpected, 'expected');
-			this._savePngImage('output', imgActual, 'actual');
-		}
+		const ignoredPixels = this._applyBounds(imgActual);
+		const results = [];
+		let bestIndex = 0;
+		let bestDifference = totalPixels;
 
 		const imgDiff = new PNG({
 			width,
 			height
 		});
 
-		this.result.diffPixels = pixelmatch(
-			imgExpected.data,
-			imgActual.data,
-			imgDiff.data,
-			width,
-			height,
-			this.options.args
-		);
-
-		this.result.totalPixels = totalPixels;
-		this.result.relevantPixels = totalPixels - ignoredPixels;
-		const difference = 100 * this.result.diffPixels / this.result.relevantPixels;
-
-		this.result.difference = parseFloat(difference.toFixed(4));
-		this.result.match = this.result.difference <= this.options.tolerance;
-
-		if (!this.result.match) {
-			this._savePngImage('diff', imgDiff);
-			this.result.diffImage = this._getFileName('diff');
+		if (opts.dumpIntermediateImage) {
+			this._savePngImage('output', imgActual, 'actual');
 		}
 
-		return this.result;
+		// Compare the actual image with every base image in the list.
+		for (let i = 0; i < expectedImages.length; i++) {
+			const expectedPath = expectedImages[i];
+			const imgExpected = this._loadPngImage(expectedPath);
+
+			if (imgExpected.width !== imgActual.width || imgExpected.height !== imgActual.height) {
+				throw new Error('Image sizes do not match');
+			}
+
+			this._applyBounds(imgExpected);
+			if (opts.dumpIntermediateImage) {
+				this._savePngImage('output', imgExpected, 'expected-' + i);
+			}
+
+			results[i] = {};
+			results[i].diffPixels = pixelmatch(
+				imgExpected.data,
+				imgActual.data,
+				imgDiff.data,
+				width,
+				height,
+				opts.args
+			);
+
+			results[i].totalPixels = totalPixels;
+			results[i].relevantPixels = totalPixels - ignoredPixels;
+			const difference = 100 * results[i].diffPixels / results[i].relevantPixels;
+
+			results[i].difference = parseFloat(difference.toFixed(4));
+			results[i].match = results[i].difference <= opts.tolerance;
+
+			if (!results[i].match) {
+				this._savePngImage('diff', imgDiff, i);
+				results[i].diffImage = this._getFileName('diff', i);
+			}
+
+			// Keep track of the best match.
+			if (results[i].diffPixels < bestDifference) {
+				bestDifference = results[i].diffPixels;
+				bestIndex = i;
+			}
+		}
+
+		// Use the best match as return value.
+		for (const key in res) {
+			if (!res.hasOwnProperty(key)) {
+				continue;
+			}
+			res[key] = results[bestIndex][key];
+		}
+		res.checks = results;
+
+		return res;
 	}
 
 	/**
@@ -414,14 +398,71 @@ class PixelmatchHelper extends Helper {
 				}
 			}
 		} else {
+			// We need a dynamic temp-name here: When the helper is used with
+			// the `run-workers` option, multiple workers might access a temp
+			// file at the same time.
+			const uid = Math.random().toString(36).slice(-5);
+			const tempName = `~${uid}.temp`;
+
 			// Screenshot the current viewport into a temp file.
-			await driver.saveScreenshot('~screenshot.temp');
+			await driver.saveScreenshot(tempName);
 			this._deleteFile(outputFile);
 
 			// Move the temp file to the correct folder and rename the file.
-			fs.renameSync(global.output_dir + '/~screenshot.temp', outputFile);
-			this._deleteFile(global.output_dir + '/~screenshot.temp');
+			fs.renameSync(global.output_dir + '/' + tempName, outputFile);
+			this._deleteFile(global.output_dir + '/' + tempName);
 		}
+	}
+
+	/**
+	 * Clears pixels in the specified image that are outside the bounding rect
+	 * or inside an ignored area.
+	 *
+	 * @param {PNG} png - The image to modify.
+	 * @return {int} Number of cleared pixels.
+	 * @private
+	 */
+	_applyBounds(png) {
+		const options = this.options;
+		let cleared = 0;
+
+		const useBounds = options.bounds.left
+			|| options.bounds.top
+			|| options.bounds.width
+			|| options.bounds.height;
+
+		// Apply a bounding box to only compare a section of the image.
+		if (useBounds) {
+			this.debug(`Apply bounds to image ...`);
+			const box = {
+				x0: 0,
+				x1: options.bounds.left,
+				x2: options.bounds.left + options.bounds.width,
+				x3: imgExpected.width,
+				y0: 0,
+				y1: options.bounds.top,
+				y2: options.bounds.top + options.bounds.height,
+				y3: imgExpected.height
+			};
+
+			cleared += this._clearRect(png, box.x0, box.y0, box.x1, box.y3);
+			cleared += this._clearRect(png, box.x1, box.y0, box.x3, box.y1);
+			cleared += this._clearRect(png, box.x1, box.y2, box.x3, box.y3);
+			cleared += this._clearRect(png, box.x2, box.y1, box.x3, box.y2);
+		}
+
+		// Clear areas that are ignored.
+		for (let i = 0; i < options.ignore.length; i++) {
+			cleared += this._clearRect(
+				png,
+				options.ignore[i].left,
+				options.ignore[i].top,
+				options.ignore[i].left + options.ignore[i].width,
+				options.ignore[i].top + options.ignore[i].height
+			);
+		}
+
+		return cleared;
 	}
 
 	/**
@@ -504,6 +545,34 @@ class PixelmatchHelper extends Helper {
 	}
 
 	/**
+	 * Captures the expected or actual image, depending on the captureFlag.
+	 *
+	 * @param {string} which - Which image to capture: 'expected', 'actual'.
+	 * @param {bool|string} captureFlag - Either true, false or 'missing'.
+	 * @private
+	 */
+	async _maybeCaptureImage(which, captureFlag) {
+		if (false === captureFlag) {
+			return;
+		}
+
+		if ('missing' === captureFlag) {
+			const path = this._buildPath(which);
+
+			if (this._isFile(path, 'read')) {
+				// Not missing: Exact image match.
+				return;
+			}
+			if ('expected' === which && this._getExpectedImagePaths()) {
+				// Not missing: Expected image variation(s) found.
+				return;
+			}
+		}
+
+		await this.takeScreenshot(this.imageName, which);
+	}
+
+	/**
 	 * Sanitizes the given options and updates all relevant class members with
 	 * either the new, sanitized value, or with a default value.
 	 *
@@ -513,7 +582,7 @@ class PixelmatchHelper extends Helper {
 	 */
 	async _setupTest(image, options) {
 		// Set the name of the current image.
-		this.imageName = image;
+		this.imageName = image.replace(/(~.+)?\.png$/, '');
 
 		// Reset the previous test results.
 		this.result = {
@@ -611,15 +680,15 @@ class PixelmatchHelper extends Helper {
 
 			// Debug: Dump intermediate images.
 			if ('undefined' !== typeof options.dumpIntermediateImage) {
-				newValues.dumpIntermediateImage = !!options.dumpIntermediateImage;
+				newValues.dumpIntermediateImage = this._toBool(options.dumpIntermediateImage);
 			}
 
 			// Capture screenshots before comparison?
 			if ('undefined' !== typeof options.captureActual) {
-				newValues.captureActual = !!options.captureActual;
+				newValues.captureActual = this._toBool(options.captureActual, ['missing']);
 			}
 			if ('undefined' !== typeof options.captureExpected) {
-				newValues.captureExpected = !!options.captureExpected;
+				newValues.captureExpected = this._toBool(options.captureExpected, ['missing']);
 			}
 		}
 
@@ -683,18 +752,47 @@ class PixelmatchHelper extends Helper {
 	 * @private
 	 */
 	_deleteFile(file) {
-		// Make sure the target filename is available.
 		try {
-			fs.existsSync(file) && fs.unlinkSync(file);
-		} catch (err) {
-			if ('ENOENT' !== err.code) {
-				throw new Error(`Could not delete target file "${file}" - is it read-only?`);
+			if (this._isFile(file)) {
+				fs.unlinkSync(file);
 			}
+		} catch (err) {
+			throw new Error(`Could not delete target file "${file}" - is it read-only?`);
 		}
 	}
 
 	/**
-	 * Builds the absolute path to a relative folder path.
+	 * Tests, if the given file exists..
+	 *
+	 * @param {string} file - The file to check.
+	 * @param {string} mode - Optional. Either empty, or 'read'/'write' to
+	 *        validate that the current user can either read or write the file.
+	 * @private
+	 */
+	_isFile(file, mode) {
+		let accessFlag = fs.constants.F_OK;
+
+		if ('read' === mode) {
+			accessFlag |= fs.constants.R_OK;
+		} else if ('write' === mode) {
+			accessFlag |= fs.constants.W_OK;
+		}
+
+		try {
+			// If access permission fails, an error is thrown.
+			fs.accessSync(file, accessFlag);
+			return true;
+		} catch (err) {
+			if ('ENOENT' !== err.code) {
+				console.error(err.code + ':  ' + file);
+			}
+
+			return false;
+		}
+	}
+
+	/**
+	 * Builds the absolute path to a relative folder.
 	 *
 	 * @param {string} dir - The relative folder name.
 	 * @returns {string}
@@ -729,7 +827,9 @@ class PixelmatchHelper extends Helper {
 		}
 
 		if ('diff' === which) {
-			filename = this.globalDiffPrefix + filename;
+			const parts = filename.split(/[\/\\]/);
+			parts[parts.length - 1] = this.globalDiffPrefix + parts[parts.length - 1];
+			filename = parts.join(path.sep);
 		}
 
 		if (suffix) {
@@ -749,16 +849,59 @@ class PixelmatchHelper extends Helper {
 	 * @private
 	 */
 	_buildPath(which, suffix) {
+		let fullPath;
 		const dir = this.globalDir[which];
 
 		if (!dir) {
-			throw new Error(`No ${which}-folder defined.`);
+			if (path.isAbsolute(which) && this._isFile(which)) {
+				fullPath = which;
+			} else {
+				throw new Error(`No ${which}-folder defined.`);
+			}
+		} else {
+			fullPath = dir + this._getFileName(which, suffix);
+			this._mkdirp(path.dirname(fullPath));
 		}
 
-		const fullPath = dir + this._getFileName(which, suffix);
-		this._mkdirp(path.dirname(fullPath));
-
 		return fullPath;
+	}
+
+	/**
+	 * Returns a list of absolute image paths of base images for the comparison.
+	 * All files in the returned list exist in the filesystem.
+	 *
+	 * Naming convention:
+	 *
+	 * Files that contain a trailing "~<num>" suffix are considered part of the
+	 * matching list.
+	 *
+	 * For example:
+	 *
+	 * image: "google-home"
+	 * files:
+	 *        "google-home.png"     # exact match
+	 *        "google-home~1.png"   # variation
+	 *        "google-home~83.png"  # variation
+	 *
+	 * @return {string[]}
+	 * @private
+	 */
+	_getExpectedImagePaths() {
+		const list = [];
+		const fullPath = this._buildPath('expected');
+		const dir = path.dirname(fullPath);
+		const file = path.basename(fullPath);
+		const re = new RegExp('^' + file.replace('.png', '(:?~.+)?\\.png') + '$');
+
+		this._mkdirp(dir);
+
+		fs.readdirSync(dir).map(fn => {
+			if (fn.match(re)) {
+				list.push(`${dir}/${fn}`);
+			}
+		});
+
+		return list;
 	}
 
 	/**
@@ -778,11 +921,9 @@ class PixelmatchHelper extends Helper {
 
 		this.debug(`Load image from ${path} ...`);
 
-		fs.access(path, fs.constants.F_OK, (err) => {
-			if (err) {
-				throw new Error(`The ${which}-image does not exist at "${path}"`);
-			}
-		});
+		if (!this._isFile(path, 'read')) {
+			throw new Error(`The ${which}-image does not exist at "${path}"`);
+		}
 
 		const data = fs.readFileSync(path);
 		return PNG.sync.read(data);
@@ -805,11 +946,9 @@ class PixelmatchHelper extends Helper {
 
 		this.debug(`Save image to ${path} ...`);
 
-		fs.access(path, fs.constants.F_OK | fs.constants.W_OK, (err) => {
-			if (err && 'ENOENT' !== err.code) {
-				throw new Error(`Cannot save the ${which}-image to ${path}. Maybe the file is read-only.`);
-			}
-		});
+		if (this._isFile(path) && !this._isFile(path, 'write')) {
+			throw new Error(`Cannot save the ${which}-image to ${path}. Maybe the file is read-only.`);
+		}
 
 		const data = PNG.sync.write(png);
 		fs.writeFileSync(path, data);
@@ -867,6 +1006,41 @@ class PixelmatchHelper extends Helper {
 
 		// Return the real number of cleared pixels.
 		return count;
+	}
+
+	/**
+	 * Casts the given value into a boolean. Several string terms are translated
+	 * to boolean true. If validTerms are specified, and the given value matches
+	 * one of those validTerms, the term is returned instead of a boolean.
+	 *
+	 * Sample:
+	 *
+	 * _toBool('yes')                 --> true
+	 * _toBool('n')                   --> false
+	 * _toBool('any')                 --> false
+	 * _toBool('ANY', ['any', 'all']) --> 'any'
+	 *
+	 * @param {any} value - The value to cast.
+	 * @param {array} validTerms - List of terms that should not be cast to a
+	 *         boolean but returned directly.
+	 * @return {bool|string} Either a boolean or a lowercase string.
+	 * @private
+	 */
+	_toBool(value, validTerms) {
+		if (true === value || false === value) {
+			return value;
+		}
+
+		if (value && 'string' === typeof value) {
+			value = value.toLowerCase();
+			return -1 !== ['1', 'on', 'y', 'yes', 'true', 'always'].indexOf(value);
+		}
+
+		if (validTerms && Array.isArray(validTerms) && -1 !== validTerms.indexOf(value)) {
+			return value;
+		}
+
+		return !!value;
 	}
 }
 

@@ -6,29 +6,33 @@ Two screenshots are compared for differences, using a custom tolerance. When bot
 
 ## What's special about this helper?
 
-#### It's free!
-
-This helper is open-source and only relies on other (free) open-source packages!
-
-#### It's fast and private!
+#### ⭐️ It's fast and private!
 
 Comparison is done in memory on your machine by comparing pixel details. The images are not rendered into a hidden canvas, no data is sent or loaded to any web service.
 
-#### It supports parallel execution!
+#### ⭐️ It supports parallel execution
 
-This helper can be used with NodeJS Workers to enable [→ parallel testing](https://codecept.io/parallel/).
+This helper can be used with NodeJS Workers to enable [→ parallel testing](https://codecept.io/parallel/) in CodeceptJS.
 
-#### Multiple areas!
+#### ⭐️ Match against multiple base images
+
+The flexible matching logic can recognize and match multiple base images for a single screenshot. This is very helpful if you have slight pixel variations between two devices or browsers: Provide one base image for every browser or device and finally prevent false failures!
+
+#### ⭐️ Free and open-source
+
+This package is open-source and only relies on other (free) open-source packages!
+
+#### ⭐️ Multiple areas
 
 You can define a bounding rectangle, as well as multiple ignore-areas to only compare pixels that are relevant for the test.
 
-#### Accurate calculation!
+#### ⭐️ Accurate calculation
 
 When using a bounding rectangle or ignore-areas, the library accurately counts relevant pixels to calculate the total difference between both images. Every pixel that's outside the bounds or inside an ignored area is not included in that calculation.
 
-#### Great documentation!
+#### ⭐️ Complete documentation
 
-Browse the GitHub wiki to learn everything about this library.
+Browse the GitHub Wiki to learn everything about this library. Also, the code is clean, short and contains inline comments to document the behavior.
 
 ## Quick Guide
 
@@ -38,7 +42,7 @@ Install the package.  [→ Details](https://github.com/stracker-phil/codeceptjs-
 npm install codeceptjs-pixelmatchhelper
 ```
 
-Include this helper in your `codecept.json`/`codecept.conf.js` file.  [→ Details](https://github.com/stracker-phil/codeceptjs-pixelmatchhelper/wiki/Helper-Configuration)
+Include the helper in your `codecept.json` config file.  [→ Details](https://github.com/stracker-phil/codeceptjs-pixelmatchhelper/wiki/Helper-Configuration)
 
 ```js
 helpers: {
