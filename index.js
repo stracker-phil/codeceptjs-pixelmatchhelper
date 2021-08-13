@@ -906,7 +906,7 @@ class PixelmatchHelper extends Helper {
 		}
 
 		if (suffix) {
-			suffix = '.' + suffix.replace(/(^\.+|\.+$)/g, '') + '.png';
+			suffix = '.' + suffix.toString().replace(/(^\.+|\.+$)/g, '') + '.png';
 			filename = filename.substr(0, filename.length - 4) + suffix;
 		}
 
