@@ -133,7 +133,7 @@ class PixelmatchHelper extends Helper {
 			alpha: 0.5,
 			includeAA: false,
 			diffMask: false,
-			aaColor: [255, 255, 0],
+			aaColor: [128, 128, 128],
 			diffColor: [255, 0, 0],
 			diffColorAlt: null
 		},
@@ -167,7 +167,9 @@ class PixelmatchHelper extends Helper {
 		diffImage: '',
 		diffPixels: 0,
 		totalPixels: 0,
-		relevantPixels: 0
+		relevantPixels: 0,
+		variation: '',
+		variations: []
 	};
 
 	/**
@@ -185,8 +187,12 @@ class PixelmatchHelper extends Helper {
 			this.globalDir.expected = this._resolvePath('./tests/screenshots/base/');
 		}
 
-		if (config.dirDiff) {
-			this.globalDir.diff = this._resolvePath(config.dirDiff);
+		if ('undefined' !== typeof config.dirDiff) {
+			if (config.dirDiff) {
+				this.globalDir.diff = this._resolvePath(config.dirDiff);
+			} else {
+				this.globalDir.diff = false;
+			}
 		} else {
 			this.globalDir.diff = this._resolvePath('./tests/screenshots/diff/');
 		}
@@ -243,7 +249,14 @@ class PixelmatchHelper extends Helper {
 			if (res.match) {
 				resolve(res);
 			} else {
-				reject(`Images are different by ${res.difference}% - differences are displayed in '${res.diffImage}'`);
+				const msg = [];
+				msg.push(`Images are different by ${res.difference}%`);
+
+				if (res.diffImage) {
+					msg.push(`differences are displayed in '${res.diffImage}'`);
+				}
+
+				reject(msg.join(' - '));
 			}
 		});
 	}
@@ -284,6 +297,7 @@ class PixelmatchHelper extends Helper {
 		const results = [];
 		let bestIndex = 0;
 		let bestDifference = totalPixels;
+		let bestImgDiff;
 
 		const imgDiff = new PNG({
 			width,
@@ -296,8 +310,8 @@ class PixelmatchHelper extends Helper {
 
 		// Compare the actual image with every base image in the list.
 		for (let i = 0; i < expectedImages.length; i++) {
-			const expectedPath = expectedImages[i];
-			const imgExpected = this._loadPngImage(expectedPath);
+			const imgPath = expectedImages[i];
+			const imgExpected = this._loadPngImage(imgPath);
 
 			if (imgExpected.width !== imgActual.width || imgExpected.height !== imgActual.height) {
 				throw new Error('Image sizes do not match');
@@ -305,7 +319,7 @@ class PixelmatchHelper extends Helper {
 
 			this._applyBounds(imgExpected);
 			if (opts.dumpIntermediateImage) {
-				this._savePngImage('output', imgExpected, 'expected-' + i);
+				this._savePngImage('output', imgExpected, 'expected.' + (i ? i : ''));
 			}
 
 			results[i] = {};
@@ -325,13 +339,23 @@ class PixelmatchHelper extends Helper {
 			results[i].difference = parseFloat(difference.toFixed(4));
 			results[i].match = results[i].difference <= opts.tolerance;
 
-			if (!results[i].match) {
-				this._savePngImage('diff', imgDiff, i);
+			if (-1 !== imgPath.indexOf('~')) {
+				results[i].variation = imgPath.replace(/\.png$|^.*~/g, '');
+			} else {
+				results[i].variation = '';
+			}
+
+			if (!results[i].match && this.globalDir.diff) {
 				results[i].diffImage = this._getFileName('diff', i);
+			} else {
+				results[i].diffImage = '';
 			}
 
 			// Keep track of the best match.
 			if (results[i].diffPixels < bestDifference) {
+				// Remember the serialized PNG, because the imgDiff object is
+				// a reference that might be updated before the loop ends.
+				bestImgDiff = PNG.sync.write(imgDiff);
 				bestDifference = results[i].diffPixels;
 				bestIndex = i;
 			}
@@ -344,7 +368,14 @@ class PixelmatchHelper extends Helper {
 			}
 			res[key] = results[bestIndex][key];
 		}
-		res.checks = results;
+
+		// Add the dynamic property `variations` that lists all comparisons.
+		res.variations = results;
+
+		// Only create a diff-image of the best-matching variation.
+		if (!res.match) {
+			this._savePngImage('diff', bestImgDiff, res.variation);
+		}
 
 		return res;
 	}
@@ -361,57 +392,92 @@ class PixelmatchHelper extends Helper {
 	 * @returns {Promise}
 	 */
 	async takeScreenshot(name, which, element) {
-		const driver = this._getDriver();
-
 		await this._setupTest(name);
+
+		if (element) {
+			await this._takeElementScreenshot(name, which, element);
+		} else {
+			await this._takeScreenshot(name, which);
+		}
+	}
+
+	/**
+	 * Takes a screenshot of the entire viewport and saves it as either an
+	 * actual image, or an expected base-image.
+	 *
+	 * @param {string} name - Name of the output image.
+	 * @param {'actual'|'expected'} which - Optional. Whether the screenshot is
+	 *        the expected bas eimage, or an actual image for comparison.
+	 *        Defaults to 'actual'.
+	 * @param {string} element - Optional. Selector of the element to
+	 *        screenshot, or empty to screenshot current viewport.
+	 * @private
+	 */
+	async _takeElementScreenshot(name, which, element) {
+		const driver = this._getDriver();
 
 		// The output path where the screenshot is saved to.
 		const outputFile = this._buildPath('expected' === which ? which : 'actual');
 
-		if (element) {
-			// Screenshot a single element.
-			await driver.waitForVisible(element);
-			const els = await driver._locate(element);
+		// Screenshot a single element.
+		await driver.waitForVisible(element);
+		const els = await driver._locate(element);
 
-			if ('TestCafe' === driver._which) {
-				if (!await els.count) {
-					throw new Error(`Element ${element} couldn't be located`);
-				}
-
-				await driver.t.takeElementScreenshot(els, outputFile);
-			} else {
-				if (!els.length) {
-					throw new Error(`Element ${element} couldn't be located`);
-				}
-				const el = els[0];
-
-				switch (driver._which) {
-					case 'Playwright':
-					case 'Puppeteer':
-						await el.screenshot({path: outputFile});
-						break;
-
-					case 'WebDriver':
-					case 'Appium':
-						await el.saveScreenshot(outputFile);
-						break;
-				}
+		if ('TestCafe' === driver._which) {
+			if (!await els.count) {
+				throw new Error(`Element ${element} couldn't be located`);
 			}
+
+			await driver.t.takeElementScreenshot(els, outputFile);
 		} else {
-			// We need a dynamic temp-name here: When the helper is used with
-			// the `run-workers` option, multiple workers might access a temp
-			// file at the same time.
-			const uid = Math.random().toString(36).slice(-5);
-			const tempName = `~${uid}.temp`;
+			if (!els.length) {
+				throw new Error(`Element ${element} couldn't be located`);
+			}
+			const el = els[0];
 
-			// Screenshot the current viewport into a temp file.
-			await driver.saveScreenshot(tempName);
-			this._deleteFile(outputFile);
+			switch (driver._which) {
+				case 'Playwright':
+				case 'Puppeteer':
+					await el.screenshot({path: outputFile});
+					break;
 
-			// Move the temp file to the correct folder and rename the file.
-			fs.renameSync(global.output_dir + '/' + tempName, outputFile);
-			this._deleteFile(global.output_dir + '/' + tempName);
+				case 'WebDriver':
+				case 'Appium':
+					await el.saveScreenshot(outputFile);
+					break;
+			}
 		}
+	}
+
+	/**
+	 * Takes a screenshot of the entire viewport and saves it as either an
+	 * actual image, or an expected base-image.
+	 *
+	 * @param {string} name - Name of the output image.
+	 * @param {'actual'|'expected'} which - Optional. Whether the screenshot is
+	 *        the expected bas eimage, or an actual image for comparison.
+	 *        Defaults to 'actual'.
+	 * @private
+	 */
+	async _takeScreenshot(name, which) {
+		const driver = this._getDriver();
+
+		// The output path where the screenshot is saved to.
+		const outputFile = this._buildPath('expected' === which ? which : 'actual');
+
+		// We need a dynamic temp-name here: When the helper is used with
+		// the `run-workers` option, multiple workers might access a temp
+		// file at the same time.
+		const uid = Math.random().toString(36).slice(-5);
+		const tempName = `~${uid}.temp`;
+
+		// Screenshot the current viewport into a temp file.
+		await driver.saveScreenshot(tempName);
+		this._deleteFile(outputFile);
+
+		// Move the temp file to the correct folder and rename the file.
+		fs.renameSync(global.output_dir + '/' + tempName, outputFile);
+		this._deleteFile(global.output_dir + '/' + tempName);
 	}
 
 	/**
@@ -423,26 +489,27 @@ class PixelmatchHelper extends Helper {
 	 * @private
 	 */
 	_applyBounds(png) {
-		const options = this.options;
+		const opts = this.options;
 		let cleared = 0;
 
-		const useBounds = options.bounds.left
-			|| options.bounds.top
-			|| options.bounds.width
-			|| options.bounds.height;
+		const useBounds = opts.bounds.left
+			|| opts.bounds.top
+			|| opts.bounds.width
+			|| opts.bounds.height;
+
 
 		// Apply a bounding box to only compare a section of the image.
 		if (useBounds) {
 			this.debug(`Apply bounds to image ...`);
 			const box = {
 				x0: 0,
-				x1: options.bounds.left,
-				x2: options.bounds.left + options.bounds.width,
-				x3: imgExpected.width,
+				x1: opts.bounds.left,
+				x2: opts.bounds.left + opts.bounds.width,
+				x3: png.width,
 				y0: 0,
-				y1: options.bounds.top,
-				y2: options.bounds.top + options.bounds.height,
-				y3: imgExpected.height
+				y1: opts.bounds.top,
+				y2: opts.bounds.top + opts.bounds.height,
+				y3: png.height
 			};
 
 			cleared += this._clearRect(png, box.x0, box.y0, box.x1, box.y3);
@@ -452,13 +519,13 @@ class PixelmatchHelper extends Helper {
 		}
 
 		// Clear areas that are ignored.
-		for (let i = 0; i < options.ignore.length; i++) {
+		for (let i = 0; i < opts.ignore.length; i++) {
 			cleared += this._clearRect(
 				png,
-				options.ignore[i].left,
-				options.ignore[i].top,
-				options.ignore[i].left + options.ignore[i].width,
-				options.ignore[i].top + options.ignore[i].height
+				opts.ignore[i].left,
+				opts.ignore[i].top,
+				opts.ignore[i].left + opts.ignore[i].width,
+				opts.ignore[i].top + opts.ignore[i].height
 			);
 		}
 
@@ -563,13 +630,13 @@ class PixelmatchHelper extends Helper {
 				// Not missing: Exact image match.
 				return;
 			}
-			if ('expected' === which && this._getExpectedImagePaths()) {
+			if ('expected' === which && this._getExpectedImagePaths().length) {
 				// Not missing: Expected image variation(s) found.
 				return;
 			}
 		}
 
-		await this.takeScreenshot(this.imageName, which);
+		await this._takeScreenshot(this.imageName, which);
 	}
 
 	/**
@@ -591,7 +658,9 @@ class PixelmatchHelper extends Helper {
 			diffImage: '',
 			diffPixels: 0,
 			totalPixels: 0,
-			relevantPixels: 0
+			relevantPixels: 0,
+			variation: '',
+			variations: []
 		};
 
 		// Define the default options.
@@ -611,7 +680,7 @@ class PixelmatchHelper extends Helper {
 				alpha: 0.5,
 				includeAA: false,
 				diffMask: false,
-				aaColor: [255, 255, 0],
+				aaColor: [128, 128, 128],
 				diffColor: [255, 0, 0],
 				diffColorAlt: null
 			},
@@ -697,7 +766,11 @@ class PixelmatchHelper extends Helper {
 		// Prepare paths for the current operation.
 		this.path.expected = this._buildPath('expected');
 		this.path.actual = this._buildPath('actual');
-		this.path.diff = this._buildPath('diff');
+
+		// Diff-image generation might be disabled.
+		if (this.globalDir.diff) {
+			this.path.diff = this._buildPath('diff');
+		}
 	}
 
 	/**
@@ -853,6 +926,11 @@ class PixelmatchHelper extends Helper {
 		const dir = this.globalDir[which];
 
 		if (!dir) {
+			if ('diff' === which) {
+				// Diff image generation is disabled.
+				return '';
+			}
+
 			if (path.isAbsolute(which) && this._isFile(which)) {
 				fullPath = which;
 			} else {
@@ -941,7 +1019,13 @@ class PixelmatchHelper extends Helper {
 		const path = this._buildPath(which, suffix);
 
 		if (!path) {
-			throw new Error(`No ${which}-image defined.`);
+			if ('diff' === which) {
+				// Diff generation can be disabled by setting the path to
+				// false/empty. This is not an error.
+				return;
+			} else {
+				throw new Error(`No ${which}-image defined.`);
+			}
 		}
 
 		this.debug(`Save image to ${path} ...`);
@@ -950,8 +1034,17 @@ class PixelmatchHelper extends Helper {
 			throw new Error(`Cannot save the ${which}-image to ${path}. Maybe the file is read-only.`);
 		}
 
-		const data = PNG.sync.write(png);
-		fs.writeFileSync(path, data);
+		let data;
+
+		if (png instanceof PNG) {
+			data = PNG.sync.write(png);
+		} else if (png instanceof Buffer) {
+			data = png;
+		}
+
+		if (data && data instanceof Buffer) {
+			fs.writeFileSync(path, data);
+		}
 	}
 
 	/**
