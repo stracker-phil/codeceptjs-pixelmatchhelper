@@ -232,7 +232,7 @@ class PixelmatchHelper extends Helper {
 	 * I.checkVisualDifferences('dashboard.png', { screenshot: true });
 	 *
 	 * @param {string} image - Name of the input image to compare.
-	 * @param {object} options - Optional options for the comparison.
+	 * @param {object} [options] - Optional options for the comparison.
 	 * @return {Promise}
 	 */
 	checkVisualDifferences(image, options) {
@@ -267,7 +267,7 @@ class PixelmatchHelper extends Helper {
 	 * assertion but can throw an error, when the images cannot be compared.
 	 *
 	 * @param {string} image - Name of the input image to compare.
-	 * @param {object} options - Optional options for the comparison.
+	 * @param {object} [options] - Optional options for the comparison.
 	 * @return {{match: boolean, difference: float}} Comparison details.
 	 */
 	async getVisualDifferences(image, options) {
@@ -384,10 +384,10 @@ class PixelmatchHelper extends Helper {
 	 * Take screenshot of individual element.
 	 *
 	 * @param {string} name - Name of the output image.
-	 * @param {'actual'|'expected'} which - Optional. Whether the screenshot is
+	 * @param {'actual'|'expected'} [which] - Optional. Whether the screenshot is
 	 *        the expected bas eimage, or an actual image for comparison.
 	 *        Defaults to 'actual'.
-	 * @param {string} element - Optional. Selector of the element to
+	 * @param {string} [element] - Optional. Selector of the element to
 	 *        screenshot, or empty to screenshot current viewport.
 	 * @returns {Promise}
 	 */
