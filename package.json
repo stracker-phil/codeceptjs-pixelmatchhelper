@@ -2,12 +2,14 @@
   "name": "codeceptjs-pixelmatchhelper",
   "version": "1.0.5",
   "description": "Pixelmatch helper for CodeceptJS, with support for Playwright, Webdriver, TestCafe, Puppeteer & Appium",
-  "main": "index.js",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
   "repository": {
     "type": "git",
     "url": "git@github.com:stracker-phil/codeceptjs-pixelmatchhelper.git"
   },
   "scripts": {
+    "prepublish": "tsc",
     "test": "jest"
   },
   "dependencies": {
