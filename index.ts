@@ -584,7 +584,7 @@ class PixelmatchHelper extends Helper {
 				png.data.fill(0, k, k + 4);
 			}
 		}
-
+		//@ts-ignore
 		this.debug(`Clear Rect ${x0}/${y0} - ${x1}/${y1} | ${count} pixels cleared`);
 
 		// Return the real number of cleared pixels.
@@ -612,6 +612,7 @@ class PixelmatchHelper extends Helper {
 			}
 		}
 
+		//@ts-ignore
 		this.debug(`Save image to ${path} ...`);
 
 		if (_isFile(path) && !_isFile(path, 'write')) {
@@ -646,6 +647,7 @@ class PixelmatchHelper extends Helper {
 			throw new Error(`No ${which}-image defined.`);
 		}
 
+		//@ts-ignore
 		this.debug(`Load image from ${path} ...`);
 
 		if (!_isFile(path, 'read')) {
@@ -859,6 +861,7 @@ class PixelmatchHelper extends Helper {
 
 		// Apply a bounding box to only compare a section of the image.
 		if (useBounds) {
+			//@ts-ignore
 			this.debug(`Apply bounds to image ...`);
 			const box = {
 				x0: 0,
@@ -965,6 +968,7 @@ class PixelmatchHelper extends Helper {
 			height: density * size.height
 		};
 
+		//@ts-ignore
 		this.debugSection(`Bounding box of ${selector}:`, JSON.stringify(boundingBox));
 
 		return boundingBox;
