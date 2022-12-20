@@ -1,0 +1,15 @@
+{  
+    "ts-node": {
+    "files": true
+  },
+    "compilerOptions": {
+        "outDir": "./dist",
+        "module": "commonjs",
+        "target": "es2018",
+        "lib": ["es2018", "DOM"],
+        "types": ["node"],
+        "rootDir": "./",
+        "esModuleInterop": true
+    },
+    "exclude": ["node_modules"]
+}
