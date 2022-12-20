@@ -18,7 +18,6 @@ jobs:
       with:
         node-version: ${{ matrix.node-version }}
     - name: run unit tests
-      continue-on-error: true
       run: |
         npm i
-        npm run ci
+        npm test
