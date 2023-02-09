@@ -469,7 +469,7 @@ class PixelmatchHelper extends Helper {
 		// the `run-workers` option, multiple workers might access a temp
 		// file at the same time.
 		const uid = Math.random().toString(36).slice(-5);
-		const tempName = `~${uid}.temp`;
+		const tempName = `~${uid}.temp.png`;
 
 		// Screenshot the current viewport into a temp file.
 		await driver.saveScreenshot(tempName);
