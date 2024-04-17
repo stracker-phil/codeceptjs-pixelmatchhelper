@@ -1,5 +1,5 @@
 const fs = require('fs');
-const PNG = require('pngjs').PNG;
+const { PNG } = require('pngjs');
 const pixelmatch = require('pixelmatch');
 const path = require('path');
 const Helper = require('@codeceptjs/helper');
@@ -39,7 +39,7 @@ class PixelmatchHelper extends Helper {
 	};
 
 	/**
-	 * Default tolserance level for comparisons.
+	 * Default tolerance level for comparisons.
 	 *
 	 * @type {float}
 	 */
@@ -1044,6 +1044,13 @@ class PixelmatchHelper extends Helper {
 
 		if (data && data instanceof Buffer) {
 			fs.writeFileSync(path, data);
+		}
+
+		// if allure is used, attached the diff screenshot
+		const allure = codeceptjs.container.plugins("allure");
+		if (allure) {
+			this.debug(`Attaching diff screenshot to Allure report...`);
+			allure.addAttachment(`${this.globalDiffPrefix}_screenshot.png`, data, "image/png");
 		}
 	}
 
